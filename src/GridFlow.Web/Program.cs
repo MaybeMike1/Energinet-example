@@ -15,6 +15,9 @@ builder.Services.AddOptions<GridFlowApiOptions>()
         $"{GridFlowApiOptions.SectionName}:BaseUrl must be an absolute URL.")
     .ValidateOnStart();
 
+builder.Services.AddOptions<DashboardOptions>()
+    .Bind(builder.Configuration.GetSection(DashboardOptions.SectionName));
+
 builder.Services.TryAddSingleton(TimeProvider.System);
 
 builder.Services.AddHttpClient<IGridFlowApiClient, GridFlowApiClient>((serviceProvider, client) =>

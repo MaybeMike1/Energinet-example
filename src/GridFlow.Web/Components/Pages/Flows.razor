@@ -1,99 +1,112 @@
 @page "/"
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 
 @using GridFlow.Application.GasFlows
 @using GridFlow.Web.Services
 
 @inject IGridFlowApiClient ApiClient
-@inject TimeProvider Time
+@inject TimeProvider Clock
+@inject IOptions<DashboardOptions> DashboardOptions
 
 <PageTitle>Gas flow dashboard</PageTitle>
 
 <div class="dashboard">
     <header class="dashboard-header">
         <div>
-            <h1 class="h3 mb-1">Danish gas flow</h1>
-            <p class="text-muted mb-0">Source: Energinet (<a href="https://www.energidataservice.dk" target="_blank" rel="noopener">energidataservice.dk</a>)</p>
+            <h1 class="dashboard-title">Danish gas flow</h1>
+            <p class="dashboard-subtitle">
+                Source: Energinet (<a href="https://www.energidataservice.dk" target="_blank" rel="noopener">energidataservice.dk</a>)
+            </p>
+        </div>
+        <div class="sync-status" aria-live="polite">
+            @if (_isRefreshing)
+            {
+                <span class="sync-badge syncing">Syncing…</span>
+            }
+            else if (_lastSyncedAt is { } synced)
+            {
+                <span class="sync-badge synced">Updated @synced.ToLocalTime().ToString("HH:mm:ss")</span>
+            }
+            <span class="sync-interval text-muted">Auto-refresh every @FormatInterval(_refreshInterval)</span>
         </div>
     </header>
 
-    <section class="card shadow-sm mb-4">
-        <div class="card-body">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label" for="from">From</label>
-                    <InputDate @bind-Value="_fromDate" class="form-control" id="from" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="to">To</label>
-                    <InputDate @bind-Value="_toDate" class="form-control" id="to" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label" for="zone">Zone</label>
-                    <InputSelect @bind-Value="_zone" class="form-select" id="zone">
-                        @foreach (var zone in ZoneCatalog.All)
-                        {
-                            <option value="@zone.Slug">@zone.Label</option>
-                        }
-                    </InputSelect>
-                </div>
-                <div class="col-md-2">
-                    <button class="btn btn-primary w-100" @onclick="ApplyFiltersAsync" disabled="@_isLoading">
-                        @(_isLoading ? "Loading…" : "Apply")
-                    </button>
-                </div>
+    <section class="filter-panel">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="from">From</label>
+                <InputDate @bind-Value="_fromDate" @bind-Value:after="OnFiltersChangedAsync" class="form-control" id="from" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="to">To</label>
+                <InputDate @bind-Value="_toDate" @bind-Value:after="OnFiltersChangedAsync" class="form-control" id="to" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="zone">Flow zone</label>
+                <InputSelect @bind-Value="_zone" @bind-Value:after="OnFiltersChangedAsync" class="form-select" id="zone">
+                    @foreach (var zone in ZoneCatalog.All)
+                    {
+                        <option value="@zone.Slug">@zone.Label</option>
+                    }
+                </InputSelect>
             </div>
         </div>
     </section>
 
     @if (!string.IsNullOrWhiteSpace(_errorMessage))
     {
-        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        <div class="alert alert-danger dashboard-alert" role="alert">@_errorMessage</div>
     }
 
-    <div class="row g-4">
+    <div class="row g-4 dashboard-panels">
         <div class="col-lg-5">
-            <section class="card shadow-sm h-100">
-                <div class="card-header">Chart</div>
-                <div class="card-body">
-                    @if (_isLoading)
+            <section class="dashboard-card h-100">
+                <div class="dashboard-card-header">
+                    <span>Chart</span>
+                    <span class="text-muted small">@ZoneCatalog.GetLabel(_zone)</span>
+                </div>
+                <div class="dashboard-card-body">
+                    @if (_isLoading && _summaryPoints.Count == 0)
                     {
-                        <p class="text-muted mb-0">Loading chart…</p>
+                        <div class="placeholder-panel">Loading chart…</div>
                     }
                     else if (_summaryPoints.Count == 0)
                     {
-                        <p class="text-muted mb-0">No observations in this range.</p>
+                        <div class="placeholder-panel">No observations in this range.</div>
                     }
                     else
                     {
-                        <FlowChart Points="_summaryPoints" Title="@ZoneCatalog.GetLabel(_zone)" />
+                        <div class="@(_isRefreshing ? "panel-refreshing" : null)">
+                            <FlowChart Points="_summaryPoints" Title="@ZoneCatalog.GetLabel(_zone)" />
+                        </div>
                     }
                 </div>
             </section>
         </div>
 
         <div class="col-lg-7">
-            <section class="card shadow-sm h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <section class="dashboard-card h-100">
+                <div class="dashboard-card-header">
                     <span>Observations</span>
                     @if (_table is not null)
                     {
                         <span class="text-muted small">@_table.TotalCount total</span>
                     }
                 </div>
-                <div class="card-body p-0">
-                    @if (_isLoading)
+                <div class="dashboard-card-body table-panel">
+                    @if (_isLoading && (_table is null || _table.Items.Count == 0))
                     {
-                        <p class="p-3 text-muted mb-0">Loading table…</p>
+                        <div class="placeholder-panel">Loading table…</div>
                     }
                     else if (_table is null || _table.Items.Count == 0)
                     {
-                        <p class="p-3 text-muted mb-0">No rows to display.</p>
+                        <div class="placeholder-panel">No rows to display.</div>
                     }
                     else
                     {
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped mb-0">
+                        <div class="table-responsive @(_isRefreshing ? "panel-refreshing" : null)">
+                            <table class="table table-sm table-hover dashboard-table mb-0">
                                 <thead>
                                     <tr>
                                         <th>Gas day</th>
@@ -108,9 +121,9 @@
                                     {
                                         <tr>
                                             <td>@row.GasDay.ToString("yyyy-MM-dd")</td>
-                                            <td class="text-end">@row.KWhFromBiogas.ToString("N0")</td>
-                                            <td class="text-end">@row.KWhToDenmark.ToString("N0")</td>
-                                            <td class="text-end">@row.KWhFromNorthSea.ToString("N0")</td>
+                                            <td class="text-end numeric">@row.KWhFromBiogas.ToString("N0")</td>
+                                            <td class="text-end numeric">@row.KWhToDenmark.ToString("N0")</td>
+                                            <td class="text-end numeric">@row.KWhFromNorthSea.ToString("N0")</td>
                                             <td class="text-end">@row.RetrievedAtUtc.ToString("g")</td>
                                         </tr>
                                     }
@@ -121,7 +134,7 @@
                 </div>
                 @if (_table is { TotalPages: > 1 })
                 {
-                    <div class="card-footer d-flex justify-content-between align-items-center">
+                    <div class="dashboard-card-footer">
                         <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPageAsync" disabled="@(_page <= 1 || _isLoading)">Previous</button>
                         <span class="small text-muted">Page @_page of @_table.TotalPages</span>
                         <button class="btn btn-outline-secondary btn-sm" @onclick="NextPageAsync" disabled="@(_page >= _table.TotalPages || _isLoading)">Next</button>
@@ -135,6 +148,11 @@
 @code {
     private const int PageSize = 10;
 
+    private readonly CancellationTokenSource _disposeCts = new();
+    private CancellationTokenSource _loadCts = new();
+    private PeriodicTimer? _refreshTimer;
+    private TimeSpan _refreshInterval;
+
     private DateOnly _from;
     private DateOnly _to;
     private DateTime _fromDate;
@@ -142,21 +160,33 @@
     private string _zone = ZoneCatalog.All[2].Slug;
     private int _page = 1;
     private bool _isLoading;
+    private bool _isRefreshing;
     private string? _errorMessage;
+    private DateTimeOffset? _lastSyncedAt;
     private PaginatedResult<GasFlowDto>? _table;
     private IReadOnlyList<GasFlowSummaryPointDto> _summaryPoints = [];
 
     protected override async Task OnInitializedAsync()
     {
-        var today = DateOnly.FromDateTime(Time.GetUtcNow().UtcDateTime);
+        _refreshInterval = DashboardOptions.Value.RefreshInterval;
+        if (_refreshInterval < TimeSpan.FromSeconds(15))
+        {
+            _refreshInterval = TimeSpan.FromSeconds(15);
+        }
+
+        var today = DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
         _to = today;
         _from = today.AddDays(-7);
         _toDate = _to.ToDateTime(TimeOnly.MinValue);
         _fromDate = _from.ToDateTime(TimeOnly.MinValue);
+
         await LoadAsync().ConfigureAwait(false);
+
+        _refreshTimer = new PeriodicTimer(_refreshInterval, Clock);
+        _ = RunRefreshLoopAsync();
     }
 
-    private async Task ApplyFiltersAsync()
+    private async Task OnFiltersChangedAsync()
     {
         _from = DateOnly.FromDateTime(_fromDate);
         _to = DateOnly.FromDateTime(_toDate);
@@ -186,36 +216,100 @@
         return LoadAsync();
     }
 
-    private async Task LoadAsync()
+    private async Task RunRefreshLoopAsync()
     {
-        _isLoading = true;
-        _errorMessage = null;
+        if (_refreshTimer is null)
+        {
+            return;
+        }
+
+        try
+        {
+            while (await _refreshTimer.WaitForNextTickAsync(_disposeCts.Token).ConfigureAwait(false))
+            {
+                await InvokeAsync(async () => await LoadAsync(backgroundRefresh: true).ConfigureAwait(false));
+            }
+        }
+        catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
+        {
+            // Component disposed.
+        }
+    }
+
+    private async Task LoadAsync(bool backgroundRefresh = false)
+    {
+        await _loadCts.CancelAsync().ConfigureAwait(false);
+        _loadCts.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var cancellationToken = _loadCts.Token;
+
+        if (backgroundRefresh)
+        {
+            _isRefreshing = true;
+        }
+        else
+        {
+            _isLoading = true;
+            _errorMessage = null;
+        }
+
         try
         {
             if (_from > _to)
             {
                 _errorMessage = "The start date must be on or before the end date.";
-                _table = null;
-                _summaryPoints = [];
+                if (!backgroundRefresh)
+                {
+                    _table = null;
+                    _summaryPoints = [];
+                }
+
                 return;
             }
 
-            var summaryTask = ApiClient.GetSummaryAsync(_from, _to, _zone, CancellationToken.None);
-            var tableTask = ApiClient.GetFlowsAsync(_from, _to, zone: null, _page, PageSize, CancellationToken.None);
+            var summaryTask = ApiClient.GetSummaryAsync(_from, _to, _zone, cancellationToken);
+            var tableTask = ApiClient.GetFlowsAsync(_from, _to, zone: null, _page, PageSize, cancellationToken);
             await Task.WhenAll(summaryTask, tableTask).ConfigureAwait(false);
 
             _summaryPoints = (await summaryTask.ConfigureAwait(false)).Points;
             _table = await tableTask.ConfigureAwait(false);
+            _lastSyncedAt = Clock.GetUtcNow();
+            _errorMessage = null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Superseded by a newer load.
         }
         catch (GridFlowApiException ex)
         {
-            _errorMessage = ex.Message;
-            _table = null;
-            _summaryPoints = [];
+            if (!backgroundRefresh || _table is null)
+            {
+                _errorMessage = ex.Message;
+                _table = null;
+                _summaryPoints = [];
+            }
         }
         finally
         {
-            _isLoading = false;
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                _isLoading = false;
+                _isRefreshing = false;
+            }
         }
     }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _disposeCts.CancelAsync().ConfigureAwait(false);
+        await _loadCts.CancelAsync().ConfigureAwait(false);
+        _refreshTimer?.Dispose();
+        _loadCts.Dispose();
+        _disposeCts.Dispose();
+    }
+
+    private static string FormatInterval(TimeSpan interval) =>
+        interval.TotalMinutes >= 1
+            ? $"{interval.TotalMinutes:F0} min"
+            : $"{interval.TotalSeconds:F0} s";
 }
