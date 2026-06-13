@@ -1,0 +1,70 @@
+version: 2.1
+
+# GridFlow CI.
+#
+# Runs on the `machine` executor (a full Linux VM with a local Docker daemon) rather than the
+# `docker` executor. The integration tests start a real SQL Server via Testcontainers and connect
+# to it over `localhost`; that only works when Docker runs on the same host as the test process.
+
+jobs:
+  build-and-test:
+    machine:
+      image: ubuntu-2404:current
+    environment:
+      DOTNET_CHANNEL: "10.0"
+      DOTNET_ROOT: /home/circleci/.dotnet
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      TEST_RESULTS_DIR: /home/circleci/project/test-results
+    steps:
+      - checkout
+
+      - run:
+          name: Install .NET SDK
+          command: |
+            curl -fsSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh
+            chmod +x dotnet-install.sh
+            ./dotnet-install.sh --channel "$DOTNET_CHANNEL" --install-dir "$DOTNET_ROOT"
+            echo "export PATH=$DOTNET_ROOT:$DOTNET_ROOT/tools:\$PATH" >> "$BASH_ENV"
+            "$DOTNET_ROOT/dotnet" --info
+
+      - restore_cache:
+          keys:
+            - nuget-v1-{{ checksum "Directory.Packages.props" }}
+            - nuget-v1-
+
+      - run:
+          name: Restore
+          command: dotnet restore
+
+      - save_cache:
+          key: nuget-v1-{{ checksum "Directory.Packages.props" }}
+          paths:
+            - ~/.nuget/packages
+
+      - run:
+          name: Verify formatting
+          command: dotnet format --verify-no-changes
+
+      - run:
+          name: Build (Release)
+          command: dotnet build -c Release --no-restore
+
+      - run:
+          name: Test (Release)
+          command: |
+            dotnet test -c Release --no-build \
+              --logger "junit;LogFilePath=$TEST_RESULTS_DIR/{assembly}.junit.xml"
+
+      - store_test_results:
+          path: test-results
+
+      - store_artifacts:
+          path: test-results
+          destination: test-results
+
+workflows:
+  ci:
+    jobs:
+      - build-and-test

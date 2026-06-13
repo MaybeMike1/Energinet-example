@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\GridFlow.Domain\GridFlow.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

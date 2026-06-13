@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GridFlow.Api/GridFlow.Api.csproj" />
+    <Project Path="src/GridFlow.Application/GridFlow.Application.csproj" />
+    <Project Path="src/GridFlow.Domain/GridFlow.Domain.csproj" />
+    <Project Path="src/GridFlow.Infrastructure/GridFlow.Infrastructure.csproj" />
+    <Project Path="src/GridFlow.Web/GridFlow.Web.csproj" />
+    <Project Path="src/GridFlow.Worker/GridFlow.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GridFlow.ApiTests/GridFlow.ApiTests.csproj" />
+    <Project Path="tests/GridFlow.IntegrationTests/GridFlow.IntegrationTests.csproj" />
+    <Project Path="tests/GridFlow.UnitTests/GridFlow.UnitTests.csproj" />
+  </Folder>
+</Solution>
