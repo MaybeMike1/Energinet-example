@@ -9,6 +9,8 @@
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="JunitXml.TestLogger" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="xunit.v3" />
@@ -23,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GridFlow.Domain\GridFlow.Domain.csproj" />
     <ProjectReference Include="..\..\src\GridFlow.Application\GridFlow.Application.csproj" />
+    <ProjectReference Include="..\..\src\GridFlow.Infrastructure\GridFlow.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
