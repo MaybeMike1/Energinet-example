@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\GridFlow.Domain\GridFlow.Domain.csproj" />
     <ProjectReference Include="..\..\src\GridFlow.Application\GridFlow.Application.csproj" />
     <ProjectReference Include="..\..\src\GridFlow.Infrastructure\GridFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\GridFlow.Worker\GridFlow.Worker.csproj" />
   </ItemGroup>
 
 </Project>

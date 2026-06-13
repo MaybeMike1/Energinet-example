@@ -1,3 +1,4 @@
+using GridFlow.Application.GasFlows;
 using GridFlow.Infrastructure.Persistence;
 
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<GridFlowDbContext>(options => options.UseSqlServer(connectionString));
+        services.AddScoped<IGasFlowRepository, GasFlowRepository>();
 
         return services;
     }
