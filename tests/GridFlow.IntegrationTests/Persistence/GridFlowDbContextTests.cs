@@ -24,7 +24,7 @@ public sealed class GridFlowDbContextTests : IClassFixture<SqlServerFixture>
     }
 
     [Fact]
-    public async Task Migration_is_applied()
+    public async Task GivenMigratedDatabase_WhenQueryingAppliedMigrations_ThenIncludesInitialCreate()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var db = _fixture.CreateContext();
@@ -35,7 +35,7 @@ public sealed class GridFlowDbContextTests : IClassFixture<SqlServerFixture>
     }
 
     [Fact]
-    public async Task Record_round_trips_through_the_database()
+    public async Task GivenSavedRecord_WhenReloading_ThenValuesRoundTrip()
     {
         var ct = TestContext.Current.CancellationToken;
         var gasDay = new DateOnly(2026, 6, 12);
@@ -55,7 +55,7 @@ public sealed class GridFlowDbContextTests : IClassFixture<SqlServerFixture>
     }
 
     [Fact]
-    public async Task Duplicate_natural_key_is_rejected_by_unique_index()
+    public async Task GivenExistingNaturalKey_WhenSavingDuplicate_ThenThrowsDbUpdateException()
     {
         var ct = TestContext.Current.CancellationToken;
         var gasDay = new DateOnly(2026, 6, 20);

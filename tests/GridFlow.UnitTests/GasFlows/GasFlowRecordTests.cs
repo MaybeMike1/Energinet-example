@@ -15,7 +15,7 @@ public class GasFlowRecordTests
         KWhToPoland: -241_865_040);
 
     [Fact]
-    public void Create_sets_natural_key_and_values()
+    public void GivenValidInput_WhenCreating_ThenSetsNaturalKeyAndValues()
     {
         var gasDay = new DateOnly(2026, 6, 12);
         var retrievedAt = new DateTimeOffset(2026, 6, 13, 10, 0, 0, TimeSpan.Zero);
@@ -29,7 +29,7 @@ public class GasFlowRecordTests
     }
 
     [Fact]
-    public void Create_stores_retrieved_timestamp_in_utc()
+    public void GivenNonUtcTimestamp_WhenCreating_ThenStoresRetrievedTimestampInUtc()
     {
         var local = new DateTimeOffset(2026, 6, 13, 12, 0, 0, TimeSpan.FromHours(2));
 
@@ -42,7 +42,7 @@ public class GasFlowRecordTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Create_rejects_missing_dataset(string dataset)
+    public void GivenBlankDataset_WhenCreating_ThenThrowsArgumentException(string dataset)
     {
         var act = () => GasFlowRecord.Create(dataset, new DateOnly(2026, 6, 12), SampleValues, DateTimeOffset.UtcNow);
 
@@ -50,7 +50,7 @@ public class GasFlowRecordTests
     }
 
     [Fact]
-    public void Create_rejects_default_gas_day()
+    public void GivenDefaultGasDay_WhenCreating_ThenThrowsArgumentException()
     {
         var act = () => GasFlowRecord.Create("Gasflow", default, SampleValues, DateTimeOffset.UtcNow);
 
@@ -58,7 +58,7 @@ public class GasFlowRecordTests
     }
 
     [Fact]
-    public void Update_overwrites_values_and_timestamp()
+    public void GivenExistingRecord_WhenUpdating_ThenOverwritesValuesAndTimestamp()
     {
         var record = GasFlowRecord.Create(
             "Gasflow",

@@ -3,7 +3,7 @@ namespace GridFlow.ApiTests;
 public class ScaffoldSmokeTests
 {
     [Fact]
-    public void Solution_is_wired_up()
+    public void GivenScaffoldedApi_WhenRunningSmokeTest_ThenPasses()
     {
         true.Should().BeTrue();
     }
