@@ -48,11 +48,42 @@ shared build settings live in [`Directory.Build.props`](Directory.Build.props).
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- Docker (for the SQL Server Testcontainers integration tests)
-- SQL Server LocalDB or a SQL Server container for local development
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) (for local `dotnet run` / tests)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (recommended — runs SQL Server and the full stack via Compose)
+- SQL Server LocalDB (optional — only if you run hosts outside Docker without Compose)
 
-## Commands
+## Run with Docker Compose (recommended)
+
+No local SQL Server install required. From the repo root:
+
+```bash
+cp .env.example .env          # edit MSSQL_SA_PASSWORD if you like
+docker compose up --build -d
+```
+
+| Service | URL |
+|---------|-----|
+| Dashboard (Blazor) | http://localhost:5125 |
+| API (BFF) | http://localhost:5087 |
+| API health | http://localhost:5087/health/ready |
+| SQL Server | `localhost,1433` (sa / password from `.env`) |
+
+The stack starts **SQL Server**, applies EF migrations on API startup, then runs the **Worker** (ingests Gasflow every 5 minutes by default in Compose) and **Web** (calls the API at `http://api:8080` inside the network).
+
+Useful commands:
+
+```bash
+docker compose logs -f worker    # watch ingestion
+docker compose ps
+docker compose down              # stop containers
+docker compose down -v           # stop and delete the SQL volume
+```
+
+The dashboard auto-refreshes on a timer (default 1 minute, configurable via `Dashboard:RefreshInterval`) and reloads immediately when you change the date range or zone — no Apply button needed.
+
+Override the worker interval in `.env`: `INGESTION_INTERVAL=00:15:00`
+
+## Commands (local dotnet run)
 
 ```bash
 # build / run / test

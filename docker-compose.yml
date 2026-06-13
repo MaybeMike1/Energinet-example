@@ -1,0 +1,79 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    volumes:
+      - gridflow-sql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  api:
+    build:
+      context: .
+      dockerfile: src/GridFlow.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ApplyMigrationsOnStartup: "true"
+      ConnectionStrings__GridFlow: Server=sqlserver,1433;Database=GridFlow;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+    ports:
+      - "5087:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/GridFlow.Worker/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__GridFlow: Server=sqlserver,1433;Database=GridFlow;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;
+      EnergiDataService__BaseUrl: https://api.energidataservice.dk/
+      EnergiDataService__Dataset: Gasflow
+      Ingestion__Interval: ${INGESTION_INTERVAL:-00:05:00}
+      Ingestion__Window: 7.00:00:00
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: src/GridFlow.Web/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      GridFlowApi__BaseUrl: http://api:8080
+      Dashboard__RefreshInterval: "00:01:00"
+    ports:
+      - "5125:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  gridflow-sql-data:
