@@ -11,6 +11,7 @@
     <PackageReference Include="JunitXml.TestLogger" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
@@ -22,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GridFlow.Api\GridFlow.Api.csproj" />
+    <ProjectReference Include="..\..\src\GridFlow.Infrastructure\GridFlow.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

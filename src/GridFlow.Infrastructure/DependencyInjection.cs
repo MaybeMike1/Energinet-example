@@ -17,6 +17,7 @@ public static class DependencyInjection
 
         services.AddDbContext<GridFlowDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<IGasFlowRepository, GasFlowRepository>();
+        services.AddScoped<IGasFlowReadRepository, GasFlowReadRepository>();
 
         return services;
     }
