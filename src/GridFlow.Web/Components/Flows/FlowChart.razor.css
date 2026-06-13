@@ -1,0 +1,49 @@
+.flow-chart svg {
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+}
+
+.flow-chart .axis {
+    stroke: #94a3b8;
+    stroke-width: 1;
+}
+
+.flow-chart .series {
+    fill: none;
+    stroke: #0d6efd;
+    stroke-width: 2.5;
+}
+
+.flow-chart .chart-x-labels {
+    position: relative;
+    max-width: 640px;
+    height: 1.25rem;
+    margin-top: 0.25rem;
+}
+
+.flow-chart .chart-x-labels span {
+    position: absolute;
+    transform: translateX(-50%);
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.flow-chart .chart-legend {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    color: #334155;
+    font-size: 0.9rem;
+}
+
+.flow-chart .legend-swatch {
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 999px;
+    background: #0d6efd;
+}

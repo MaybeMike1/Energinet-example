@@ -1,0 +1,221 @@
+@page "/"
+@rendermode InteractiveServer
+
+@using GridFlow.Application.GasFlows
+@using GridFlow.Web.Services
+
+@inject IGridFlowApiClient ApiClient
+@inject TimeProvider Time
+
+<PageTitle>Gas flow dashboard</PageTitle>
+
+<div class="dashboard">
+    <header class="dashboard-header">
+        <div>
+            <h1 class="h3 mb-1">Danish gas flow</h1>
+            <p class="text-muted mb-0">Source: Energinet (<a href="https://www.energidataservice.dk" target="_blank" rel="noopener">energidataservice.dk</a>)</p>
+        </div>
+    </header>
+
+    <section class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label" for="from">From</label>
+                    <InputDate @bind-Value="_fromDate" class="form-control" id="from" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="to">To</label>
+                    <InputDate @bind-Value="_toDate" class="form-control" id="to" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="zone">Zone</label>
+                    <InputSelect @bind-Value="_zone" class="form-select" id="zone">
+                        @foreach (var zone in ZoneCatalog.All)
+                        {
+                            <option value="@zone.Slug">@zone.Label</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" @onclick="ApplyFiltersAsync" disabled="@_isLoading">
+                        @(_isLoading ? "Loading…" : "Apply")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <section class="card shadow-sm h-100">
+                <div class="card-header">Chart</div>
+                <div class="card-body">
+                    @if (_isLoading)
+                    {
+                        <p class="text-muted mb-0">Loading chart…</p>
+                    }
+                    else if (_summaryPoints.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No observations in this range.</p>
+                    }
+                    else
+                    {
+                        <FlowChart Points="_summaryPoints" Title="@ZoneCatalog.GetLabel(_zone)" />
+                    }
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-7">
+            <section class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Observations</span>
+                    @if (_table is not null)
+                    {
+                        <span class="text-muted small">@_table.TotalCount total</span>
+                    }
+                </div>
+                <div class="card-body p-0">
+                    @if (_isLoading)
+                    {
+                        <p class="p-3 text-muted mb-0">Loading table…</p>
+                    }
+                    else if (_table is null || _table.Items.Count == 0)
+                    {
+                        <p class="p-3 text-muted mb-0">No rows to display.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Gas day</th>
+                                        <th class="text-end">From biogas</th>
+                                        <th class="text-end">To Denmark</th>
+                                        <th class="text-end">From North Sea</th>
+                                        <th class="text-end">Retrieved (UTC)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in _table.Items)
+                                    {
+                                        <tr>
+                                            <td>@row.GasDay.ToString("yyyy-MM-dd")</td>
+                                            <td class="text-end">@row.KWhFromBiogas.ToString("N0")</td>
+                                            <td class="text-end">@row.KWhToDenmark.ToString("N0")</td>
+                                            <td class="text-end">@row.KWhFromNorthSea.ToString("N0")</td>
+                                            <td class="text-end">@row.RetrievedAtUtc.ToString("g")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+                @if (_table is { TotalPages: > 1 })
+                {
+                    <div class="card-footer d-flex justify-content-between align-items-center">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPageAsync" disabled="@(_page <= 1 || _isLoading)">Previous</button>
+                        <span class="small text-muted">Page @_page of @_table.TotalPages</span>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPageAsync" disabled="@(_page >= _table.TotalPages || _isLoading)">Next</button>
+                    </div>
+                }
+            </section>
+        </div>
+    </div>
+</div>
+
+@code {
+    private const int PageSize = 10;
+
+    private DateOnly _from;
+    private DateOnly _to;
+    private DateTime _fromDate;
+    private DateTime _toDate;
+    private string _zone = ZoneCatalog.All[2].Slug;
+    private int _page = 1;
+    private bool _isLoading;
+    private string? _errorMessage;
+    private PaginatedResult<GasFlowDto>? _table;
+    private IReadOnlyList<GasFlowSummaryPointDto> _summaryPoints = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateOnly.FromDateTime(Time.GetUtcNow().UtcDateTime);
+        _to = today;
+        _from = today.AddDays(-7);
+        _toDate = _to.ToDateTime(TimeOnly.MinValue);
+        _fromDate = _from.ToDateTime(TimeOnly.MinValue);
+        await LoadAsync().ConfigureAwait(false);
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        _from = DateOnly.FromDateTime(_fromDate);
+        _to = DateOnly.FromDateTime(_toDate);
+        _page = 1;
+        await LoadAsync().ConfigureAwait(false);
+    }
+
+    private Task PreviousPageAsync()
+    {
+        if (_page <= 1)
+        {
+            return Task.CompletedTask;
+        }
+
+        _page--;
+        return LoadAsync();
+    }
+
+    private Task NextPageAsync()
+    {
+        if (_table is null || _page >= _table.TotalPages)
+        {
+            return Task.CompletedTask;
+        }
+
+        _page++;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            if (_from > _to)
+            {
+                _errorMessage = "The start date must be on or before the end date.";
+                _table = null;
+                _summaryPoints = [];
+                return;
+            }
+
+            var summaryTask = ApiClient.GetSummaryAsync(_from, _to, _zone, CancellationToken.None);
+            var tableTask = ApiClient.GetFlowsAsync(_from, _to, zone: null, _page, PageSize, CancellationToken.None);
+            await Task.WhenAll(summaryTask, tableTask).ConfigureAwait(false);
+
+            _summaryPoints = (await summaryTask.ConfigureAwait(false)).Points;
+            _table = await tableTask.ConfigureAwait(false);
+        }
+        catch (GridFlowApiException ex)
+        {
+            _errorMessage = ex.Message;
+            _table = null;
+            _summaryPoints = [];
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

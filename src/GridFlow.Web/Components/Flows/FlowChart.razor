@@ -1,0 +1,92 @@
+@using GridFlow.Application.GasFlows
+
+<div class="flow-chart">
+    @if (Points.Count == 0)
+    {
+        <p class="text-muted mb-0">No data points in this range.</p>
+    }
+    else
+    {
+        <svg viewBox="0 0 @Width @Height" role="img" aria-label="@Title time series chart">
+            <line x1="@Padding" y1="@(Height - Padding)" x2="@(Width - Padding)" y2="@(Height - Padding)" class="axis" />
+            <line x1="@Padding" y1="@Padding" x2="@Padding" y2="@(Height - Padding)" class="axis" />
+            <polyline points="@PolylinePoints" class="series" />
+        </svg>
+        <div class="chart-x-labels">
+            @foreach (var label in XLabels)
+            {
+                <span style="left: @($"{label.Percent:F1}")%">@label.Text</span>
+            }
+        </div>
+        <div class="chart-legend">
+            <span class="legend-swatch"></span>
+            <span>@Title (kWh)</span>
+        </div>
+    }
+</div>
+
+@code {
+    private const double Width = 640;
+    private const double Height = 220;
+    private const double Padding = 36;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<GasFlowSummaryPointDto> Points { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    private string PolylinePoints => string.Join(' ', Points.Select((point, index) =>
+    {
+        var (x, y) = Project(index, point.ValueKWh);
+        return $"{x:F1},{y:F1}";
+    }));
+
+    private IReadOnlyList<AxisLabel> XLabels
+    {
+        get
+        {
+            if (Points.Count == 0)
+            {
+                return [];
+            }
+
+            var step = Math.Max(1, Points.Count / 6);
+            var labels = new List<AxisLabel>();
+            for (var i = 0; i < Points.Count; i += step)
+            {
+                var (x, _) = Project(i, Points[i].ValueKWh);
+                var percent = ((x - Padding) / (Width - (Padding * 2))) * 100;
+                labels.Add(new AxisLabel(percent, Points[i].GasDay.ToString("MM-dd")));
+            }
+
+            if (labels.Count == 0 || labels[^1].Text != Points[^1].GasDay.ToString("MM-dd"))
+            {
+                var (x, _) = Project(Points.Count - 1, Points[^1].ValueKWh);
+                var percent = ((x - Padding) / (Width - (Padding * 2))) * 100;
+                labels.Add(new AxisLabel(percent, Points[^1].GasDay.ToString("MM-dd")));
+            }
+
+            return labels;
+        }
+    }
+
+    private (double X, double Y) Project(int index, long value)
+    {
+        var min = Points.Min(p => p.ValueKWh);
+        var max = Points.Max(p => p.ValueKWh);
+        if (min == max)
+        {
+            max = min + 1;
+        }
+
+        var plotWidth = Width - (Padding * 2);
+        var plotHeight = Height - (Padding * 2);
+        var x = Padding + (index / (double)Math.Max(Points.Count - 1, 1)) * plotWidth;
+        var normalised = (value - min) / (double)(max - min);
+        var y = (Height - Padding) - (normalised * plotHeight);
+        return (x, y);
+    }
+
+    private sealed record AxisLabel(double Percent, string Text);
+}
