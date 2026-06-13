@@ -1,6 +1,10 @@
 using GridFlow.Application.GasFlows;
 
+using GridFlow.Infrastructure.Observability;
+
 using Microsoft.Extensions.Options;
+
+using Serilog.Context;
 
 namespace GridFlow.Worker.Ingestion;
 
@@ -36,6 +40,8 @@ public sealed class IngestionWorker(
     private async Task RunCycleAsync(CancellationToken cancellationToken)
     {
         var startedAt = timeProvider.GetTimestamp();
+        using var _ = LogContext.PushProperty(CorrelationIds.LogPropertyName, Guid.NewGuid().ToString("N"));
+
         try
         {
             await using var scope = scopeFactory.CreateAsyncScope();

@@ -9,6 +9,47 @@ This is a portfolio project: code quality, tests, and operational maturity are t
 
 > Source: Energinet (www.energidataservice.dk)
 
+## System overview
+
+```mermaid
+flowchart LR
+    subgraph external [External]
+        EDS[(Energi Data Service API)]
+    end
+
+    subgraph gridflow [GridFlow]
+        Worker[GridFlow.Worker<br/>Background ingestion]
+        API[GridFlow.Api<br/>BFF REST API]
+        Web[GridFlow.Web<br/>Blazor dashboard]
+        SQL[(SQL Server)]
+    end
+
+    EDS -->|Gasflow dataset| Worker
+    Worker -->|idempotent upsert| SQL
+    Web -->|HTTP BFF| API
+    API -->|EF Core queries| SQL
+```
+
+| Host | Role | Key endpoints |
+|------|------|---------------|
+| **Worker** | Scheduled ingestion from Energinet, upserts into SQL | `GET /health`, `GET /health/ready` |
+| **API** | Versioned BFF for the dashboard (flows, summary, pagination) | `GET /api/v1/flows`, `GET /health/ready` |
+| **Web** | Blazor interactive-server dashboard (chart + table) | `http://localhost:5125` |
+
+Data flows **in** through the Worker (external API → SQL) and **out** through the API (SQL → Web).
+The API and Worker are separate deployable hosts sharing Application/Infrastructure layers.
+
+### Dashboard (Blazor)
+
+The dashboard at `/flows` provides:
+
+- **Date range** and **zone** filters — changes sync immediately (no Apply button)
+- **Time-series chart** for the selected zone
+- **Paginated table** of daily gas-flow observations
+- **Auto-refresh** on a configurable timer (default 1 minute)
+
+Run `docker compose up` and open http://localhost:5125 to see the live UI.
+
 ## Architecture
 
 Single solution, clean layering. Dependencies point inward (Domain has no outward references).
@@ -66,6 +107,7 @@ docker compose up --build -d
 | Dashboard (Blazor) | http://localhost:5125 |
 | API (BFF) | http://localhost:5087 |
 | API health | http://localhost:5087/health/ready |
+| Worker health | http://localhost:5088/health/ready |
 | SQL Server | `localhost,1433` (sa / password from `.env`) |
 
 The stack starts **SQL Server**, applies EF migrations on API startup, then runs the **Worker** (ingests Gasflow every 5 minutes by default in Compose) and **Web** (calls the API at `http://api:8080` inside the network).
@@ -82,6 +124,24 @@ docker compose down -v           # stop and delete the SQL volume
 The dashboard auto-refreshes on a timer (default 1 minute, configurable via `Dashboard:RefreshInterval`) and reloads immediately when you change the date range or zone — no Apply button needed.
 
 Override the worker interval in `.env`: `INGESTION_INTERVAL=00:15:00`
+
+## Observability
+
+Both **Api** and **Worker** use **Serilog** structured logging:
+
+- **Development / Testing** — human-readable console output with correlation id
+- **Production** — newline-delimited JSON (`RenderedCompactJsonFormatter`) for log aggregators
+
+Every HTTP request gets an **`X-Correlation-Id`** header (generated if absent, echoed on the response) and the same value is attached to all log entries for that request. Ingestion cycles in the Worker also get a per-cycle correlation id.
+
+**Health probes:**
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /health` | Liveness — process is running |
+| `GET /health/ready` | Readiness — JSON report with SQL connectivity, data freshness (API), or ingestion freshness (Worker) |
+
+Readiness returns `503` when checks fail; the response body lists each check with status, description, and diagnostic data.
 
 ## Commands (local dotnet run)
 
@@ -120,8 +180,9 @@ defaults. All settings are bound via the options pattern with startup validation
 
 ## Roadmap
 
-Built milestone by milestone (see [`AGENTS.md`](AGENTS.md) section 16): scaffold -> domain &
-persistence -> external client -> ingestion worker -> BFF API -> Blazor dashboard -> observability.
+Built milestone by milestone (see [`AGENTS.md`](AGENTS.md) section 16): scaffold → domain &
+persistence → external client → ingestion worker → BFF API → Blazor dashboard → **observability** (done).
+Stretch goals: Azure Container Apps deploy, OpenTelemetry, CI deploy job.
 
 ## CI
 

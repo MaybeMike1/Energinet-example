@@ -2,10 +2,18 @@ using GridFlow.Api.Endpoints;
 using GridFlow.Api.Health;
 using GridFlow.Application.GasFlows;
 using GridFlow.Infrastructure;
+using GridFlow.Infrastructure.Observability;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
+
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Host.UseGridFlowSerilog("GridFlow.Api");
+}
 
 var connectionString = builder.Configuration.GetConnectionString("GridFlow")
     ?? throw new InvalidOperationException(
@@ -30,6 +38,13 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+app.UseGridFlowCorrelationId();
+
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseSerilogRequestLogging();
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -42,16 +57,9 @@ if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("App
 }
 
 app.MapFlowsEndpoints();
+app.MapGridFlowHealthEndpoints();
 
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }))
-    .ExcludeFromDescription();
-
-app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("ready"),
-});
-
-app.Run();
+await app.RunAsync();
 
 // Expose Program for WebApplicationFactory in API tests.
 public partial class Program;

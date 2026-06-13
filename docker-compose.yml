@@ -50,9 +50,17 @@ services:
       EnergiDataService__Dataset: Gasflow
       Ingestion__Interval: ${INGESTION_INTERVAL:-00:05:00}
       Ingestion__Window: 7.00:00:00
+    ports:
+      - "5088:8080"
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
     restart: unless-stopped
 
   web:

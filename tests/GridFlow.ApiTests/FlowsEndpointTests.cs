@@ -6,7 +6,8 @@ using GridFlow.Application.GasFlows;
 
 namespace GridFlow.ApiTests;
 
-public sealed class FlowsEndpointTests(ApiTestFixture fixture) : IClassFixture<ApiTestFixture>
+[Collection(ApiTestCollection.Name)]
+public sealed class FlowsEndpointTests(ApiTestFixture fixture)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
