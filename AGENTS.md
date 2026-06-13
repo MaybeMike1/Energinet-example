@@ -133,6 +133,9 @@ Energinet explicitly asks for **Blazor**, so it must be visible and real.
 - Target meaningful coverage of logic, not a percentage. Every bug fix gets a regression test.
 - **Naming convention:** name every test method `Given<State>_When<Action>_Then<ExpectedResult>` (e.g. `GivenBlankDataset_WhenCreating_ThenThrowsArgumentException`). One behaviour per test, structured Arrange/Act/Assert.
 
+### Known issue: xUnit v3 VSTest-bridge parallelism deadlock
+`GridFlow.UnitTests` runs **serially** (`[assembly: CollectionBehavior(DisableTestParallelization = true)]`). Under `dotnet test`, xUnit v3 executes via the VSTest bridge (xunit.runner.visualstudio), and running multiple test collections in parallel intermittently **hangs**: a hang dump shows all test threads already finished (dead threadpool threads, no locks held) while the process never completes — the entry point blocks on `Task.GetResult()` and `MessageBus.ReporterWorker` sits idle. It is a lost-wakeup race in the runner's reporting bus, not in our code; heavier tests (e.g. the resilience HttpClientFactory test) just perturb timing enough to surface it. Serial execution is deterministic and effectively free for this fast suite. If the suite ever grows large enough that serial runs hurt, migrate off the VSTest bridge to xUnit v3's native Microsoft.Testing.Platform runner (which also means replacing the JUnit logger CI relies on).
+
 ## 13. CI/CD (CircleCI)
 
 Config lives in **`.circleci/config.yml`**. On every push + PR:

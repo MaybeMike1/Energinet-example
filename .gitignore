@@ -56,6 +56,10 @@ nunit-*.xml
 test-results/
 *.junit.xml
 
+# GridFlow local diagnostics (crash/hang dumps, ad-hoc logs)
+*.dmp
+hangdump/
+
 # Build Results of an ATL Project
 [Dd]ebugPS/
 [Rr]eleasePS/
